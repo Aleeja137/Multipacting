@@ -2,37 +2,46 @@
 #include <cerrno>
 #include <iostream>
 #include <cmath>
-#include<map>
+#include <map>
+#include <dolfin.h>
+#include <MeshFunction.h>
+#include <dolfin/io/HDF5File.h>
+#include <fstream>
+
 using namespace std;
+using namespace dolfin;
+
+
 
 class multipacting {
     public:
         string data_file;
         string mesh_file;
-        // Mesh() mesh
-        // BoundaryMesh() bmesh
-        // MeshFunction() mesh_boundaries
-        // MeshFunction() mesh_subdomains
-        float mesh_center[3];
-        // BuildingBoxTree() tree
-        // BuildingBoxTree() btree
+        Mesh mesh;
+        BoundaryMesh bmesh;
+        shared_ptr<MeshFunction<size_t>> mesh_subdomains;
+        shared_ptr<MeshFunction<size_t>> mesh_boundaries;
+        vector<double> mesh_center;
+        BoundingBoxTree tree;
+        BoundingBoxTree btree;
 
         bool data_ok;
         bool mesh_ok;
-        // project() campoEx
-        // project() campoEy
-        // project() campoEz
+        Function campoEx;
+        Function campoEy;
+        Function campoEz;
 
         int N_ext;
-        // array ?? lut_EX0
-        // array ?? lut_E0
-        // int lut_sense[]; // Como no sé el tamaño, uso std::vector<int> ?
-        // map(dictionary) closest_entity_dictionary
+        vector<vector<double>> lut_EX0;
+        vector<double> lut_E0;
+        vector<bool> lut_sense;
+        map<string, pair<unsigned int, double>> closest_entity_dictionary;
 
-        float RF_frequency; 
-        float energy_0; 
+
+        double RF_frequency; 
+        double energy_0; 
         int N_cycles;
-        float delta_t; 
+        double delta_t; 
 
         double e_m;
         double tol_distance;
@@ -43,13 +52,11 @@ class multipacting {
         double electron_e_over_2mc;
         double electron_e_over_2m;
 
-        // ?? solid_domains
-        // ?? domains_map
+        vector<int> solid_domains;
+        std::vector<size_t> domains_map;
 
         int max_workers;
         
-        map<string,string> param;
-
         int N_runs_per_power;
         int N_max_secondary_runs;
         int macro;
@@ -60,7 +67,15 @@ class multipacting {
         bool log;
         bool show;
         string plot_title;
+
         int randSeed;
+
+        map<string, string> param;
+
+        int N_cells;
+        int N_elems;
+
+        vector<double> RF_Power;
 
         void set_parameters_dictionary(map<string,string> param)
         {
@@ -80,50 +95,196 @@ class multipacting {
             if (param["RF_power"].find("range") != string::npos){ // Significa que 'range' se encuentra en el parámetro
                 string ps = param["RF_power"];
                 ps = ps.substr(ps.find("(")+1, ps.find(")") - ps.find("("));
-                // Ahora ps tiene el valor de incio, el del final y el incremento
+                // Ahora 'ps' tiene el valor de incio, el del final y el incremento
                 // Es decir: (x1,x2,x3)
                 string ps2 = ps.substr(ps.find(","),ps.length()-ps.find(",")-1); // ps2 = x2,x3
                 float x1 = stof(ps.substr(0,ps.find(",")));
                 float x2 = stof(ps2.substr(0,ps2.find(",")));
                 float x3 = stof(ps2.substr(ps2.find(",")+1,ps2.length()-1));
-                // Con esos valores se crea un array numpy 
-                // this.RF_power = np.arange(x1,x2,x3);
-                // this->param["RF_power"] = this.RF_power;
+
+                // Con esos valores se crea un array
+                // this->RF_Power.resize(((x1+x2)/x3)+1);
+                for (float i = x1; i < x2; i+=x3) this->RF_Power.push_back(i);
+
             } else {
                 float x1 = stof(param["RF_power"]);
-                // this->param["RF_power"] = np.array(x1); // x1 debe ser un array (?) 
+                this->RF_Power.push_back(x1);
             }
 
-            this->RF_frequency = stof(param["RF_frequency"]);
+            this->RF_frequency = stod(param["RF_frequency"]);
             this->angular_frequency = 2*M_PI*this->RF_frequency;
-            this->delta_t = stof(param["delta_t"]);
+            this->delta_t = stod(param["delta_t"]);
             this->N_cycles = stoi(param["N_cycles"]);
 
             if (param["plot_title"].length() > 0) this->plot_title = param["plot_title"];
             if (param.find("comsol_solid_domains") != param.end()) this->set_solid_domains_COMSOL(param["comsol_solid_domains"]);
         }
+
         int get_N_surface_elements() {return N_ext;} // Esto es necesario? Si fuese un parámetro privado entiendo que sí, pero si es público?
-        void read_mesh_file();
-        void mesh_center_point();
-        void set_solid_domains_COMSOL(string ld);
-        void domain_histogram();
-        void read_field_data();
-        void read_from_data_files();
-        void read_input_files();
-        void plot_surface_mesh();
-        void closest_entity();
-        void point_inside_mesh();
-        void get_initial_conditions_face();
-        void track_1_e();
-        void total_secondary_electrons();
-        void secondary_electron_yield();
-        void efn_emmision();
-        void remove_by_coordinate_value();
-        void remove_by_boolean_condition();
-        void probability_of_emmision();
-        void run_1_electron();
-        void run_n_electrons_parallel();
-        void run();
+        
+        void read_mesh_file(string mesh_file = ""){
+            if (mesh_file != "") this->mesh_file = mesh_file;
+            // Dice que esto es EXTREMADAMENTE importante, pero no se define 'parameters' en ningún lado del código original
+            //parameters["reorder_dofs_serial"] = false;
+            
+            mesh = Mesh();
+            HDF5File hdf(MPI_COMM_WORLD, this->mesh_file, "r");
+
+            mesh_subdomains = make_shared<MeshFunction<size_t>>(mesh, mesh.topology().dim());
+            hdf.read(mesh_subdomains, "/subdomains");
+            
+            mesh_boundaries = make_shared<MeshFunction<size_t>>(mesh, mesh.topology().dim()-1);
+            hdf.read(mesh_boundaries, "/boundaries");
+
+            // Mesh analysis
+            N_cells = mesh.num_cells(); // tetras
+
+            bmesh = BoundaryMesh(mesh, "exterior");
+            N_ext = bmesh.num_cells();
+            mesh_center = mesh_center_point(bmesh);
+
+            tree = BoundingBoxTree();
+            tree.build(mesh,3);
+
+            btree = BoundingBoxTree();
+            btree.build(bmesh,2);
+
+            N_elems = N_ext;
+
+            domains_map.assign(mesh_boundaries->values(), mesh_boundaries->values() + mesh_boundaries->size());
+
+            for (int i = 0; i < lut_sense.size(); i++) lut_sense[i] = false;
+
+            mesh_ok = true;
+
+            // PENDIENTE: añadir el catch por si no se puede abrir bien el file HDF5
+        }
+
+        vector<double> mesh_center_point(Mesh mesh) {
+            vector<double> mc = mesh.coordinates();
+
+            double minx = std::numeric_limits<double>::max();
+            double maxx = std::numeric_limits<double>::lowest();;
+            double miny = std::numeric_limits<double>::max();;
+            double maxy = std::numeric_limits<double>::lowest();;
+            double minz = std::numeric_limits<double>::max();;
+            double maxz = std::numeric_limits<double>::lowest();;
+
+            for (size_t i = 0; i < mc.size(); i += 3) {
+                double x = mc[i];
+                double y = mc[i + 1];
+                double z = mc[i + 2];
+                minx = min(minx, x);
+                miny = min(miny, y);
+                minz = min(minz, z);
+                maxx = max(maxx, x);
+                maxy = max(maxy, y);
+                maxz = max(maxz, z);
+            }
+
+            double median_x = (maxx + minx) / 2.0;
+            double median_y = (maxy + miny) / 2.0;
+            double median_z = (maxz + minz) / 2.0;
+
+            double Xc = median_x;
+            double Yc = median_y;
+            double Zc = median_z;
+
+            return {Xc, Yc, Zc};
+        }
+
+
+        void set_solid_domains_COMSOL(string ld) {
+
+            // Ya que ld es un string de la forma [x y ... z]
+            stringstream ss(ld);
+            char openBracket, closeBracket;
+            int domain;
+            
+            ss >> openBracket; // Leer el corchete de apertura '['
+
+            this->solid_domains.clear();
+            while (ss >> domain) {
+                solid_domains.push_back(domain + 1);
+            }
+            
+            ss.clear();
+            ss >> closeBracket; // Leer el corchete de cierre ']'
+        }
+
+        map<size_t,size_t> domain_histogram(bool show = false){
+            std::vector<size_t> md;
+            md.assign(mesh_boundaries->values(), mesh_boundaries->values() + mesh_boundaries->size());
+            map<size_t,size_t> dh;
+
+            for (const auto& n : md)
+            {
+                if (dh.find(n) != dh.end()) dh[n] += 1;
+                else    dh[n] = 1;
+            }
+
+            if (show) for (const auto& n : dh) std::cout << n.first << ": " << n.second << std::endl;
+
+            return dh;
+        }
+
+        bool read_field_data(bool build_lookup_table = true){
+            std::ifstream file(data_file);
+            if (!file.is_open()) {
+                std::cerr << "Failed to open the data file." << std::endl;
+                return false;
+            }
+
+            // Skip header lines
+            for (int i = 0; i < 9; ++i) {
+                std::string line;
+                std::getline(file, line);
+            }
+
+            std::string line;
+            vector<complex<double>> EX;
+            vector<complex<double>> EY;
+            vector<complex<double>> EZ;
+            vector<double> X;
+            vector<double> Y;
+            vector<double> Z;
+            
+            while (std::getline(file, line)) {
+                std::istringstream iss(line);
+                double x, y, z, ex_real, ex_imag, ey_real, ey_imag, ez_real, ez_imag;
+                char delimiter;
+                if (iss >> x >> delimiter >> y >> delimiter >> z >> delimiter >> ex_real >> delimiter >> ex_imag
+                        >> delimiter >> ey_real >> delimiter >> ey_imag >> delimiter >> ez_real >> delimiter >> ez_imag) {
+                    std::complex<double> ex(ex_real, ex_imag);
+                    std::complex<double> ey(ey_real, ey_imag);
+                    std::complex<double> ez(ez_real, ez_imag);
+                    EX.push_back(ex);
+                    EY.push_back(ey);
+                    EZ.push_back(ez);
+                    X.push_back(x);
+                    Y.push_back(y);
+                    Z.push_back(z);
+                }
+            }
+
+        }
+
+        // void read_from_data_files();
+        // void read_input_files();
+        // void plot_surface_mesh();
+        // void closest_entity();
+        // void point_inside_mesh();
+        // void get_initial_conditions_face();
+        // void track_1_e();
+        // void total_secondary_electrons();
+        // void secondary_electron_yield();
+        // void efn_emmision();
+        // void remove_by_coordinate_value();
+        // void remove_by_boolean_condition();
+        // void probability_of_emmision();
+        // void run_1_electron();
+        // void run_n_electrons_parallel();
+        // void run();
 
 
 
