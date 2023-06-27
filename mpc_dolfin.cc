@@ -5,7 +5,7 @@
 #include <map>
 #include <dolfin.h>
 #include <MeshFunction.h>
-#include <dolfin/io/HDF5File.h>
+#include <HDF5File.h>
 #include <fstream>
 
 using namespace std;
@@ -122,7 +122,7 @@ class multipacting {
 
         int get_N_surface_elements() {return N_ext;} // Esto es necesario? Si fuese un parámetro privado entiendo que sí, pero si es público?
         
-        void read_mesh_file(string mesh_file = ""){
+        bool read_mesh_file(string mesh_file = ""){
             if (mesh_file != "") this->mesh_file = mesh_file;
             // Dice que esto es EXTREMADAMENTE importante, pero no se define 'parameters' en ningún lado del código original
             //parameters["reorder_dofs_serial"] = false;
@@ -157,7 +157,8 @@ class multipacting {
 
             mesh_ok = true;
 
-            // PENDIENTE: añadir el catch por si no se puede abrir bien el file HDF5
+            // PENDIENTE: añadir el catch por si no se puede abrir bien el file HDF5, que devuelve false
+            return true;
         }
 
         vector<double> mesh_center_point(Mesh mesh) {
@@ -229,6 +230,8 @@ class multipacting {
         }
 
         bool read_field_data(bool build_lookup_table = true){
+
+
             std::ifstream file(data_file);
             if (!file.is_open()) {
                 std::cerr << "Failed to open the data file." << std::endl;
@@ -242,39 +245,160 @@ class multipacting {
             }
 
             std::string line;
-            vector<complex<double>> EX;
-            vector<complex<double>> EY;
-            vector<complex<double>> EZ;
+            vector<double> EX;
+            vector<double> EY;
+            vector<double> EZ;
             vector<double> X;
             vector<double> Y;
             vector<double> Z;
             
+            // Read E B field and process
             while (std::getline(file, line)) {
                 std::istringstream iss(line);
                 double x, y, z, ex_real, ex_imag, ey_real, ey_imag, ez_real, ez_imag;
                 char delimiter;
                 if (iss >> x >> delimiter >> y >> delimiter >> z >> delimiter >> ex_real >> delimiter >> ex_imag
                         >> delimiter >> ey_real >> delimiter >> ey_imag >> delimiter >> ez_real >> delimiter >> ez_imag) {
-                    std::complex<double> ex(ex_real, ex_imag);
-                    std::complex<double> ey(ey_real, ey_imag);
-                    std::complex<double> ez(ez_real, ez_imag);
-                    EX.push_back(ex);
-                    EY.push_back(ey);
-                    EZ.push_back(ez);
+                    // Real part
+                    EX.push_back(ex_real);
+                    EY.push_back(ey_real);
+                    EZ.push_back(ez_real);
                     X.push_back(x);
                     Y.push_back(y);
                     Z.push_back(z);
                 }
             }
 
+            // FEniCS black magic
+            // I create a finite element function space on the mesh I have read.
+            // field data will be interpolated (projected) into that vector space
+            shared_ptr<FiniteElement> element = make_shared<FiniteElement>("CG", mesh.topology().dim(), 1);
+            shared_ptr<FunctionSpace> V = make_shared<FunctionSpace>(mesh, element, 1);
+
+            // Defino las funciones para el campo dentro del espacio de funciones V
+            auto Fez = Function(V);
+            auto Fex = Function(V);
+            auto Fey = Function(V);
+
+            // auto Fiez = Fez.interpolate(V); // Gracias a dios no se usa porque no existe la clase dolfin.fem.interpolation.interpolate en C++
+            // auto Fiez2 = project(Fez,V);    // Lo mismo, pero más adelante sí se usa project() y en c++ no está
+            
+            Fez.vector()->set_local(EZ);
+            Fex.vector()->set_local(EX);
+            Fey.vector()->set_local(EY);
+
+            // PENDIENTE: Funciones para interpolar
+            // En C++ no existe la función project
+            // Se puede hacer como el ejemplo de código de aquí abajo o como dice en el link https://fenicsproject.org/qa/1314/projection-function-in-c/
+            // Function campoEx(V);
+            // auto a_ex = std::make_shared<BilinearForm>(V, V);
+            // Function u_ex(V);
+            // TestFunction v_ex(V);
+            // *a_ex = u_ex*v_ex*dx;
+            // auto L_ex = std::make_shared<LinearForm>(V);
+            // *L_ex = Fex*v_ex*dx;
+            // LinearVariationalSolver solver_ex(a_ex, L_ex, campoEx);
+            // solver_ex.solve();
+            // campoEx.set_allow_extrapolation(true);
+
+            // this->campoEx = campoEx;
+
+            if (!build_lookup_table) return true;
+
+            std::cout << N_ext << std::endl;
+
+            for(int i=0; i<N_ext; i++)
+            {
+                auto facet_i = Face(bmesh,i);
+                auto mp = facet_i.midpoint();
+                auto X0 = mp.coordinates();
+
+                // auto EX0x = campoEx(X0);
+                // auto EX0y = campoEy(X0);
+                // auto EX0z = campoEz(X0);
+
+                vector<double> EX0;
+                // EX0.push_back(EX0x);
+                // EX0.push_back(EX0y);
+                // EX0.push_back(EX0z);
+
+                // E0 = sqrt(sum(square(EX0)))
+                double E0 = sqrt(((EX0[0] * EX0[0]) + (EX0[1] * EX0[1]) + (EX0[2] * EX0[2])));
+                lut_EX0.push_back(EX0);
+                lut_E0.push_back(E0);
+            }
+
+            return true;
+
         }
 
-        // void read_from_data_files();
-        // void read_input_files();
-        // void plot_surface_mesh();
-        // void closest_entity();
-        // void point_inside_mesh();
-        // void get_initial_conditions_face();
+        bool read_from_data_files(string mesh_file, string data_file){
+            this->data_file = data_file;
+            this->mesh_file = mesh_file;
+
+            bool mesh_ok = read_mesh_file();
+            bool field_ok = read_field_data();
+
+            if (!(mesh_ok && field_ok)) return false;
+
+            if (verbose)
+            {
+                std::cout << "Data file: " << data_file << std::endl;
+                std::cout << "Mesh file: " << mesh_file << std::endl;
+                std::cout << "Data read. Num surface elems:  " << N_elems << ", Num volume elems: " << N_cells << std::endl;
+            }
+
+            return true;
+        }
+
+        bool read_input_files(){return read_from_data_files(param["mesh_file"],param["data_file"]);}
+
+        void plot_surface_mesh(){
+            // El siguiente código está sacado de https://fenicsproject.org/olddocs/dolfin/1.3.0/cpp/programmers-reference/plot/VTKPlotter.html
+            // Pero no consigo que haga el include de VTKPlotter
+            vtk::VTKPlotter plotter(bmesh);
+            plotter.plot();
+
+            // Resulta que ya no se puede:
+            // Remove VTK plotting backend. Plotting is no longer available from 
+            // the C++ interface. Basic plotting is available using matplotlib 
+            // and x3dom backends via the plot() free function in the Python 
+            // interface. Users are advised to move to e.g. Paraview for more 
+            // demanding plotting needs.
+
+            // Tengo una alternativa larga y odiosa escrita en plot_surface_mesh.cc
+            // pero, igual no merece y dejamos esta funcionalidad de lado?
+
+            // Se puede hacer así:
+            vtk::VTKFile file("bmesh.pvd");
+            file << bmesh;
+            // Y luego visualizarlo externamente usando paraview
+        }
+
+        void closest_entity(vector<float> x){
+            // https://stackoverflow.com/questions/29200635/convert-float-to-string-with-precision-number-of-decimal-digits-specified
+        }
+        bool point_inside_mesh(vector<double> X){
+            Point p(X[0],X[1],X[2]);
+            auto ent = tree.compute_first_entity_collision(p);
+            if (ent >= N_cells) return false;
+
+            if (!solid_domains.empty())
+            {
+                unsigned int domain_index = domains_map[ent];
+                if (find(solid_domains.begin(),solid_domains.end(),domain_index) != solid_domains.end()) return false;
+            }
+
+            return true;
+
+
+        }
+
+        void get_initial_conditions_face(int face_i)
+        {
+            auto nodes_ = bmesh.cells();
+            auto nodes = nodes_[face_i];
+        }
         // void track_1_e();
         // void total_secondary_electrons();
         // void secondary_electron_yield();
