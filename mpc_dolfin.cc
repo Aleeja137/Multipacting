@@ -7,6 +7,10 @@
 #include <MeshFunction.h>
 #include <HDF5File.h>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <vector>
+#include <cstdlib>
 
 using namespace std;
 using namespace dolfin;
@@ -280,26 +284,23 @@ class multipacting {
             auto Fex = Function(V);
             auto Fey = Function(V);
 
-            // auto Fiez = Fez.interpolate(V); // Gracias a dios no se usa porque no existe la clase dolfin.fem.interpolation.interpolate en C++
-            // auto Fiez2 = project(Fez,V);    // Lo mismo, pero más adelante sí se usa project() y en c++ no está
-            
             Fez.vector()->set_local(EZ);
             Fex.vector()->set_local(EX);
             Fey.vector()->set_local(EY);
 
-            // PENDIENTE: Funciones para interpolar
-            // En C++ no existe la función project
-            // Se puede hacer como el ejemplo de código de aquí abajo o como dice en el link https://fenicsproject.org/qa/1314/projection-function-in-c/
-            // Function campoEx(V);
-            // auto a_ex = std::make_shared<BilinearForm>(V, V);
-            // Function u_ex(V);
-            // TestFunction v_ex(V);
-            // *a_ex = u_ex*v_ex*dx;
-            // auto L_ex = std::make_shared<LinearForm>(V);
-            // *L_ex = Fex*v_ex*dx;
-            // LinearVariationalSolver solver_ex(a_ex, L_ex, campoEx);
-            // solver_ex.solve();
-            // campoEx.set_allow_extrapolation(true);
+            // PENDIENTE: proyectar
+
+            // Function VFez(V);  // Esta será la proyección de Fez en el espacio V
+
+            // // Define la ecuación variacional para la proyección
+            // ufl::TrialFunction v(V); // Función que cumple el contorno (?) 
+            // ufl::TestFunction u(V);  // Función que se resuelve de 'manera débil', 
+            // ufl::Form a = ufl::inner(u, v) * ufl::dx; // Se define la forma bilineal según la sintáxis de ufl porque es más sencilla 
+            // ufl::Form L = ufl::inner(Fez, v) * ufl::dx; // Lo mismo
+
+            // // Resuelve la ecuación
+            // dolfin::solve(a == L, VFez);
+            // // En resumen se busca una función v tal que la integral de v*u sea igual a la integral de v*Fez
 
             // this->campoEx = campoEx;
 
@@ -356,8 +357,8 @@ class multipacting {
         void plot_surface_mesh(){
             // El siguiente código está sacado de https://fenicsproject.org/olddocs/dolfin/1.3.0/cpp/programmers-reference/plot/VTKPlotter.html
             // Pero no consigo que haga el include de VTKPlotter
-            vtk::VTKPlotter plotter(bmesh);
-            plotter.plot();
+            // vtk::VTKPlotter plotter(bmesh);
+            // plotter.plot();
 
             // Resulta que ya no se puede:
             // Remove VTK plotting backend. Plotting is no longer available from 
@@ -370,14 +371,31 @@ class multipacting {
             // pero, igual no merece y dejamos esta funcionalidad de lado?
 
             // Se puede hacer así:
-            vtk::VTKFile file("bmesh.pvd");
-            file << bmesh;
+            // vtk::VTKFile file("bmesh.pvd");
+            // file << bmesh;
             // Y luego visualizarlo externamente usando paraview
         }
 
-        void closest_entity(vector<float> x){
-            // https://stackoverflow.com/questions/29200635/convert-float-to-string-with-precision-number-of-decimal-digits-specified
+        std::pair<unsigned int, double> closest_entity(vector<double> values){
+            
+            std::stringstream sstream;
+            sstream << std::fixed << std::setprecision(4) << values[0] << "_" << values[1] << "_" << values[2];
+            std::string strx = sstream.str();
+
+            std::pair<unsigned int, double> D;  
+
+            if (closest_entity_dictionary.find(strx) != closest_entity_dictionary.end()){
+                D = closest_entity_dictionary[strx];
+            } else {
+                dolfin::Point Xp(X[0],X[1],X[2]);
+                D = tree.compute_closest_entity(Xp);
+                closest_entity_dictionary[strx] = D;
+            }
+
+            return D;
+            
         }
+
         bool point_inside_mesh(vector<double> X){
             Point p(X[0],X[1],X[2]);
             auto ent = tree.compute_first_entity_collision(p);
@@ -394,12 +412,132 @@ class multipacting {
 
         }
 
-        void get_initial_conditions_face(int face_i)
+        std::vector<std::vector<double>> get_initial_conditions_face(int face_i)
         {
-            auto nodes_ = bmesh.cells();
-            auto nodes = nodes_[face_i];
+            // Como no hay numpy en C++, asumo que en lugar de venir en formato
+            // ([0,1,3],[3,5,6]) viene en formato (0,1,3,3,5,6)
+            // Para cada cell, vienen 3 unsigned int que identifican los vértices que lo componen
+            // Asumo que son triángulos
+            std::vector<unsigned int> cells = bmesh.cells();
+            vector<unsigned int> nodes;
+            nodes.push_back(cells[face_i*3]);
+            nodes.push_back(cells[face_i*3+1]);
+            nodes.push_back(cells[face_i*3+2]);
+
+            // Lo mismo ocurre aquí, asumo que en 
+            // lugar de ([1,2,3],[1,2,3]) viene como (1,2,3,1,2,3)
+            // Ya que estamos en 3D, las coordenadas de cada vértice son 3 doubles
+            std::vector<double> coords = bmesh.coordinates();
+            vector<double> X;
+            for (int i=0;i<3;i++) 
+            for (int j=0;j<3;j++)
+            X.push_back(coords[nodes[i]*3+j]);
+            
+            dolfin::Face facet_i = dolfin::Face(bmesh,face_i);
+            dolfin::Point mp = facet_i.midpoint();
+            std::vector<double> Nv = face_normal(X); // La normal
+
+            // Element sense (normal pointing inward or outward)
+            std::vector sense_factor = lut_sense[face_i];
+            if (!sense_factor)
+            {
+                // Calcula la distancia desde el centro del mesh al centro de la celda face_i
+                std::vector<double> Xc = mesh_center;
+                double dcm = sqrt(((mp[0]-Xc[0])**2)+((mp[1]-Xc[1])**2)+((mp[2]-Xc[2])**2));
+
+                // Avanzo 0.1*distancia en la dirección de la normal
+                double Xp = mp[0] + (dcm*0.1*Nv[0]);
+                double Yp = mp[1] + (dcm*0.1*Nv[1]);
+                double Zp = mp[2] + (dcm*0.1*Nv[2]);
+
+                std::vector<double> XYZp = {Xp,Yp,Zp};
+
+                std::pair<unsigned int,double> dcm_pair = closest_entity(XYZp);
+                std::double dcm_d = dcm_pair.second;
+
+                sense_factor = true;
+                if (dcm_d > 0.0) sense_factor = false; // Asumo que compute_closest_entity de BoundingBoxTree.h funciona igual que en la API de python
+                
+                lut_sense[face_i] = sense_factor;
+            }
+
+            // Tracking, starting conditions
+            std::vector<double> X0 = {mp[0],mp[1],mp[2]};
+            std::vector<double> U0;
+            // PENDIENTE: Se puede hacer esto más elegante seguro
+            for (int i=0;i<3;i++){
+                if (sense_factor == false) U0.push_back((-1)*(Nv[i]));
+                else U0.push_back(Nv[i]);
+            }
+            std::vector<double> EX0 = lut_EX0[face_i];
+            std::vector<std::vector<double>> result(3,std::vector<double>(3));
+            result[0] = X0;
+            result[1] = U0;
+            result[2] = EX0;
+
+            return result;
         }
-        // void track_1_e();
+
+        void track_1_e(double electron_energy_in = nullptr, double power = 1.0, double phase = 0.0, int face_i_in = nullptr, bool keep_in = false, bool show = false, dolfin::Point starting_point_in = nullptr){
+            /* Runs the tracking of 1 electron in the problem geometry.
+            power: RF power [W] in the device
+
+            phase: phase [rad] when eletron is emmited (field will be E=E0 cos (wt+phase)
+
+            face_i: the surface facet element where the electron is emmited. If not
+            especified it is chosen ramdomly.
+
+            keep: [False] Wheather or not to keep the full trayectory. If
+            show==True, this is automatically also True
+
+            show: [False] Shows the mesh and the electron trayectory.
+
+            Return values: [collision, energy_collision]
+                collision: face index where electron ended (or None)
+                energy_collision: energy [eV] of the electron when collision happens
+            */
+           bool magnetic_field = param["magnetic_field_on"];
+           double field_factor = sqrt(power);
+           double electron_energy = electron_energy_in;
+           int face_i = face_i_in;
+           dolfin::Point starting_point = dolfin::point(starting_point_in);  // Starting_point no es un punto!!! Creo que es unas coordenadas 3D y una velocidad o energía
+           bool keep = keep_in;
+
+           trayectoria;
+           collision;
+           energy_collision;
+           phase_collision;
+           max_gamma=0;
+           V0 = nullPtr;
+           U0 = nullPtr;
+
+           if (electron_energy == nulPtr) electron_energy = energy_0; 
+           if (show) keep = true;
+
+           if (log){
+               std::ofstream logfile;
+               logfile.open(logfile_name,'a');
+               logfile << "Call track_1_e starting from face=" << face_i
+           }
+
+            std::vector<double> X0;
+            std::vector<double> U0;
+            std::vector<double> EX0;
+
+           if (starting_point == nullPtr){
+               if (face_i == nullPtr) {
+                   srand(time(0));
+                   face_i = rand() % (N_ext + 1);
+               }
+               auto results = get_initial_conditions_face(face_i);
+               X0 = results[0];
+               U0 = results[0];
+               EX0 = results[0];
+           } else {
+               X0 = starting_point[0];
+           }
+        }
+
         // void total_secondary_electrons();
         // void secondary_electron_yield();
         // void efn_emmision();
@@ -435,7 +573,43 @@ double fowler_nordhaim_current_density(double E, int beta = 100)
     return jfn;
 } 
 
-void face_normal();
+std::vector<double> face_normal(std::vector<double> X){
+    // X es un vector de double que contiene las coordenadas 3D de los 3 vértices de un nodo
+    // X = (1,2,3,4,5,6,7,8,9) = [(1,2,3),(4,5,6),(7,8,9)] por ejemplo
+    int i;
+
+    std::vector<double> P1;
+    std::vector<double> P2;
+    std::vector<double> P3;
+    for (i=0;i<3;i++){
+        P1.push_back(X[i]);
+        P2.push_back(X[i+3]);
+        P3.push_back(X[i+6]);
+    }
+
+    std::vector<double> BmA;
+    std::vector<double> CmA;
+
+    for (i=0;i<3;i++){
+        BmA.push_back(P2[i]-P1[i]);
+        CmA.push_back(P3[i]-P1[i]);
+    }
+
+    double N1=BmA[1]*CmA[2]-BmA[2]*CmA[1];
+    double N2=BmA[2]*CmA[0]-BmA[0]*CmA[2];
+    double N3=BmA[0]*CmA[1]-BmA[1]*CmA[0];
+
+    double mn = sqrt(N1*N1 + N2*N2 + N3*N3);
+    std::vector<double> N;
+    N.push_back(N1/mn);
+    N.push_back(N2/mn);
+    N.push_back(N3/mn);
+
+    return N;
+
+}
+
+
 void run_1_electron(multipacting mpc)
 {
     // return mpc.track_1_e(); 
