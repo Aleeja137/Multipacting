@@ -15,6 +15,7 @@
 #include <boost/units/systems/si/codata/electromagnetic_constants.hpp>
 #include <boost/units/systems/si/codata/electron_constants.hpp>
 #include <boost/units/systems/si/codata/universal_constants.hpp>
+#include <boost/math/constants/constants.hpp>
 #include <typeinfo>
 
 // Class variables
@@ -25,9 +26,10 @@ bool verbose = false;
 bool magnetic_field_on;
 bool mesh_ok = false;
 bool build_lookup_table;
+bool show = false;
 
 int parallel = 1;
-int electrons_seed = 1000;
+int electrons_seed = 100;
 int electrons_source = 1;
 int N_max_secondary_runs = 15;
 int simulation_type = 1;
@@ -96,8 +98,6 @@ std::shared_ptr<dolfin::Function> campoEx;
 std::shared_ptr<dolfin::Function> campoEy;
 std::shared_ptr<dolfin::Function> campoEz;
 
-// Time variables
-std::time_t start_total;
 
 
 // _____________ Funciones para check_______________________//
@@ -315,8 +315,8 @@ void set_solid_domains_COMSOL(std::string ld){
 }
 
 void set_parameters_dictionary(){
-    data_file = p["data_file"];
-    mesh_file = p["mesh_file"];
+    data_file = "data/" + p["data_file"];
+    mesh_file = "data/" + p["mesh_file"];
 
     log_exec = p["log"] == "True";
     verbose = p["verbose"] == "True";
@@ -328,6 +328,7 @@ void set_parameters_dictionary(){
     simulation_type      = stoi(p["simulation_type"]);
 
     if (p["RF_power"].find("range") != std::string::npos){ // Significa que 'range' se encuentra en el parámetro
+        
         std::string ps = p["RF_power"];
         std::size_t index_start = ps.find('(');
         std::size_t index_end = ps.find(')');
@@ -336,13 +337,13 @@ void set_parameters_dictionary(){
         // std::cout << ps_limpio << std::endl;
         
         std::size_t index_coma = ps_limpio.find(',');
-        double x1 = stod(ps_limpio.substr(0,index_coma-1));
+        double x1 = stod(ps_limpio.substr(0,index_coma));
 
         std::string ps_limpio_2 = ps_limpio.substr(index_coma+1);
         index_coma = ps_limpio_2.find(',');
-        double x2 = stod(ps_limpio_2.substr(0,index_coma-1));
+        double x2 = stod(ps_limpio_2.substr(0,index_coma));
         double x3 = stod(ps_limpio_2.substr(index_coma+1));
-
+        // std::cout << x1 << "," << x2 << "," << x3 << std::endl;
         RF_power.clear();
         for (double i = x1; i < x2; i+=x3) RF_power.push_back(i);
 
@@ -496,7 +497,7 @@ bool read_field_data(bool build_lookup_table_in = true){
             double x, y, z;
             std::string ex, ey, ez;
 
-            if (iss >>x >> y >> z >> ex >> ey >> ez) {
+            if (iss >> x >> y >> z >> ex >> ey >> ez) {
 
                 // Real part of EX
                 size_t index_real = ex.find_first_of("+-",1);
@@ -742,6 +743,58 @@ double closest_entity(double Xp, double Yp, double Zp){
     return D;
 }
 
+double secondary_electron_yield(double ev)
+{
+    double S = 0;
+    try 
+    {
+        S = 0.003*std::pow(ev,1.3)*std::exp(-0.003*ev)+0.2+0.5*std::exp(-0.01*ev);
+        // std::cout << "Valor S=" << S << " con energy_eV=" << ev << std::endl;    
+    } 
+    catch (std::overflow_error)
+    {
+        std::cout << "Overflow in exponential math.exp. Energy=" << ev << std::endl;
+    }
+    return S;
+}
+
+int probability_of_emission(double sey)
+{
+    // No entiendo el por qué del '+1' así que lo vuelvo a poner al original por si acaso al final
+    if (random_seed != -1) srand(random_seed+1); // To generate the same electrons regardless of the order in which they are simulated
+    double x = (double) rand()/RAND_MAX;
+    double y = 0, n_fact = 1;
+    int n = 0;
+    while (y < x)
+    {
+        double p = std::pow(sey,n)*std::exp(-sey);
+        p = p/n_fact;
+        y = y + p;
+        n = n + 1;
+        n_fact = n_fact * n;
+    }
+    if (random_seed != -1) srand(random_seed);
+    return n-1;
+}
+
+std::tuple<int,std::vector<double>,double> total_secondary_electrons(double energy_eV)
+{
+    double sey = secondary_electron_yield(energy_eV);
+    int n = probability_of_emission(sey);
+    std::vector<double> energies;
+    double bote = energy_eV;
+    for (int i=0;i<n;i++)
+    {
+        double y = (double) rand()/RAND_MAX;
+        double e0 = y*bote;
+        energies.push_back(e0);
+        bote = bote - e0;
+    }
+
+    return std::make_tuple(n,energies,sey);
+
+}
+
 std::vector<int> remove_by_boolean_condition (std::vector<int> test_face, double operation_in, double coordinate, double value, double tolerance){
     std::vector<int> new_lista;
     bool condition = false;
@@ -838,7 +891,7 @@ std::vector<std::vector<double>> get_initial_conditions_face(int face_i){
     return result;
 }
 
-std::tuple<double, double, double, std::vector<std::vector<double>>> track_1_e (double electron_energy = -1, double power = 1.0, double phase = 0.0, int face_i = -1, bool keep = false, bool show = false){
+std::tuple<unsigned int, double, double, std::vector<std::vector<double>>> track_1_e (double electron_energy = -1, double power = 1.0, double phase = 0.0, int face_i = -1, bool keep = false, bool show_in = false){
     /* Runs the tracking of 1 electron in the problem geometry.
     power: RF power [W] in the device
 
@@ -848,16 +901,16 @@ std::tuple<double, double, double, std::vector<std::vector<double>>> track_1_e (
     especified it is chosen ramdomly.
 
     keep: [False] Wheather or not to keep the full trayectory. If
-    show==True, this is automatically also True
+    show_in==True, this is automatically also True
 
-    show: [False] Shows the mesh and the electron trayectory.
+    show_in: [False] Shows the mesh and the electron trayectory.
 
     Return values: [collision, energy_collision]
         collision: face index where electron ended (or None)
         energy_collision: energy [eV] of the electron when collision happens
     */
-   face_i = 1102;
-   log_exec = true;
+//    face_i = 1102;
+//    log_exec = true;
    if (log_exec)
    {
         std::ofstream logfile(logfile_name);
@@ -885,12 +938,12 @@ std::tuple<double, double, double, std::vector<std::vector<double>>> track_1_e (
     if (electron_energy == -1) electron_energy = energy_0;
 
     double max_gamma = 0;
-    if (show) keep = true;
+    if (show_in) keep = true;
 
     
     // Me salto el else del (if not starting_point) porque nunca se le pasa uno y son estructuras complicadas en C++ (un Eigen::vectorXd y otra cosa más)
     if (face_i == -1) face_i = rand() % N_ext;
-    std::cout << "Starting with face_i: " << face_i << std::endl;
+    // std::cout << "Starting with face_i: " << face_i << std::endl;
     auto result = get_initial_conditions_face(face_i);
     std::vector<double> X0  = result[0];
     std::vector<double> U0  = result[1];
@@ -918,7 +971,7 @@ std::tuple<double, double, double, std::vector<std::vector<double>>> track_1_e (
 
     std::vector<double> P0(3);
     for (int i=0;i<3;i++) P0[i] = ((gamma/speed_light_vacuum)*V0[i]);
-    int count = 0;
+    // int count = 0;
 
     // std::cout << " VX is: " << VX[0] << "," << VX[1] << "," << VX[2] << std::endl;
     // std::cout << " V0 is: " << V0[0] << "," << V0[1] << "," << V0[2] << std::endl;
@@ -939,7 +992,7 @@ std::tuple<double, double, double, std::vector<std::vector<double>>> track_1_e (
 
     while (!ended)
     {
-        count ++;
+        // count ++;
         EX0 = evaluate_campo_from_point(X[0],X[1],X[2]);
         // std::cout << "EX0: " << EX0[0] << "," << EX0[1] << "," << EX0[2] << std::endl; 
         // std::cout << "V0: " << V0[0] << "," << V0[1] << "," << V0[2] << std::endl; 
@@ -948,7 +1001,7 @@ std::tuple<double, double, double, std::vector<std::vector<double>>> track_1_e (
 
         if (!magnetic_field_on)
         {
-            if (count < 10) std::cout << "Magnetic field is OFF" << std::endl;
+            // if (count < 10) std::cout << "Magnetic field is OFF" << std::endl;
             std::vector<double> P_minus(3), P(3);
             for (int i=0;i<3;i++) P_minus[i] = (P0[i]-(electron_e_over_2mc*EX[i]*delta_t));
             std::vector<double> P_plus(P_minus);
@@ -1003,7 +1056,7 @@ std::tuple<double, double, double, std::vector<std::vector<double>>> track_1_e (
 
         if (!point_inside_mesh(X))
         {
-            std::cout << "Se ha salido del mesh!" << std::endl;
+            // std::cout << "Se ha salido del mesh!" << std::endl;
             // Out of the mesh, this is a collision with a boundary
             double energia_eV = (gamma-1)/electron_e_over_mc2;
             if (gamma <= 1.0)
@@ -1018,9 +1071,10 @@ std::tuple<double, double, double, std::vector<std::vector<double>>> track_1_e (
             {
                 std::cout << "Fallo de btree, con X={" <<X[0]<<","<< X[1]<<","<<X[2]<<"} y collision= " << collision_face_pair.first << "," << collision_face_pair.second << std::endl;
                 int xyz = rand() % 3;
-                double lower_bound = 0;
-                double upper_bound = 1;
-                double sr = lower_bound + (upper_bound - lower_bound) * (rand() % RAND_MAX) / RAND_MAX;
+                // double lower_bound = 0;
+                // double upper_bound = 1;
+                // double sr = lower_bound + (upper_bound - lower_bound) * (rand() % RAND_MAX) / RAND_MAX;
+                double sr = (double) rand()/RAND_MAX;
                 sr = sr*0.002 - 0.001;
                 std::vector<double> Y = {0,0,0};
                 Y[xyz] = sr;
@@ -1048,12 +1102,11 @@ std::tuple<double, double, double, std::vector<std::vector<double>>> track_1_e (
 
     } /* Termina el while not ended*/
     
-    std::cout << "Number of displacements count is: " << count << std::endl;
+    // std::cout << "Number of displacements count is: " << count << std::endl;
     
-    if (show)
+    if (show_in)
     {
         // Pendiente, por ahora nada
-        // auto vp = plot_surface_mesh();
     }
 
     if (keep)
@@ -1097,14 +1150,211 @@ std::tuple<double, double, double, std::vector<std::vector<double>>> track_1_e (
     return std::make_tuple(collision,energy_collision,phase_collision,trayectoria);
 }
 
+std::tuple<unsigned int, double, double, std::vector<std::vector<double>>> run_1_electron(double power, int face, double rf_phase, double energy_0_copy, bool keep = false)
+{
+    std::chrono::steady_clock::time_point start_1e = std::chrono::steady_clock::now();
+
+    unsigned int collision;
+    double energy_collision, phase_collision;
+    std::vector<std::vector<double>> trayectoria;
+    std::tie(collision, energy_collision, phase_collision, trayectoria) = track_1_e(energy_0_copy,power,rf_phase,face,keep);
+
+    std::chrono::steady_clock::time_point end_1e = std::chrono::steady_clock::now();
+
+    // Guardar tiempo 1 electron
+    int segundos_1e     = std::chrono::duration_cast<std::chrono::seconds>(end_1e - start_1e).count();
+    int milisegundos_1e = std::chrono::duration_cast<std::chrono::milliseconds>(end_1e - start_1e).count();
+
+    std::ofstream logtime(logtime_name, std::ios::app);
+    if (!logtime.is_open()) {std::cerr << "11. Error opening logtime file: " << logtime_name << std::endl; std::exit(1);}
+    if (segundos_1e != 0) logtime << "time 1e: " << segundos_1e << "." << milisegundos_1e << " sec" << std::endl;
+    else logtime << "time 1e: " << milisegundos_1e << " ms" << std::endl;
+    logtime.close();
+
+    // std::cout << "Segundos: " << segundos_1e << std::endl;
+    // std::cout << "Milisegundos: " << milisegundos_1e << std::endl;
+
+    return std::make_tuple(collision,energy_collision,phase_collision,trayectoria);
+}
+
+std::tuple<int, int> run_n_electrons_parallel (double power, std::vector<int> pool_runs, std::vector<double> pool_phase, std::vector<double> pool_energies){
+
+    bool ended = false;
+
+    // Mostrar y guardar estado inicial
+    std::cout << "Power=" << power << "W, initial #electrons: " << pool_phase.size() << std::endl;
+    std::ofstream logtime(logtime_name, std::ios::app);
+    if (!logtime.is_open()) {std::cerr << "9. Error opening logtime file: " << logtime_name << std::endl; std::exit(1);}
+    logtime << "Power=" << power << "W, initial #electrons: " << pool_phase.size() << std::endl;
+    logtime.close();
+
+    if (log_exec)
+    {
+        std::ofstream logfile(logfile_name, std::ios::app);
+        if (!logfile.is_open()) {std::cerr << "10. Error opening log file: " << logfile_name << std::endl; std::exit(1);}
+        logfile << "Power=" << power << "W, initial #electrons: " << pool_phase.size() << std::endl;
+        logfile.close();
+    }
+
+    if (show)
+    {
+        // Por ahora nada
+    }
+
+    // Se puede mejorar este apaño, memory wise (?)
+    std::map<std::string, double> lut_results_face;
+    std::map<std::string, double> lut_results_energy;
+    std::map<std::string, double> lut_results_phase;
+    std::map<std::string, std::vector<std::vector<double>>> lut_results_trayectoria;
+
+    int n = 0, number_electrons = 0;
+
+    while (!ended)
+    {
+        std::chrono::steady_clock::time_point start_run = std::chrono::steady_clock::now();
+
+        std::vector<int> new_pool_runs;
+        std::vector<double> new_pool_phases, new_pool_energies;
+
+        if (pool_runs.empty())
+        {
+            ended = true;
+            continue;
+        }
+
+        int mw = parallel;
+        if (pool_runs.size() < mw) mw = pool_runs.size();
+
+        if (mw == 1) // Serial, único modo por ahora
+        {
+            unsigned int face;
+            int erun;
+            double efase, energy_0_copy, energy, phase;
+            std::vector<std::vector<double>> trayectoria;
+
+            for (int i=0;i<pool_runs.size();i++)
+            {
+                erun = pool_runs[i]; efase = pool_phase[i]; energy_0_copy = pool_energies[i];
+
+                std::stringstream sstream;
+                sstream << erun;
+                sstream << std::fixed << std::setprecision(4) << "_" << efase << "_" << energy_0_copy;
+                std::string lut_index = sstream.str();
+
+                if (lut_results_face.find(lut_index) != lut_results_face.end()){
+                    face         = lut_results_face[lut_index];
+                    energy       = lut_results_energy[lut_index];
+                    phase        = lut_results_phase[lut_index];
+                    trayectoria  = lut_results_trayectoria[lut_index];
+                } else {
+                    std::tie(face, energy, phase, trayectoria) = run_1_electron(power,erun,efase,energy_0_copy,show);
+                    lut_results_face[lut_index]         = face;
+                    lut_results_energy[lut_index]       = energy;
+                    lut_results_phase[lut_index]        = phase;
+                    lut_results_trayectoria[lut_index]  = trayectoria;
+                }
+
+                if (face != 0) // En track_1_e el valor por defecto es 0, si es distinto significa que sí se ha chocado 
+                {
+                    int n_e; std::vector<double> energies; double sey;
+                    // std::cout << "Energy: " << energy << std::endl;
+                    std::tie(n_e,energies,sey) = total_secondary_electrons(energy);
+                    // std::cout << "n_e " << n_e << ", sey " << sey << ", energies [";
+                    // for (auto element : energies) std::cout << element << " ";
+                    // std::cout << "] " << std::endl;
+                    if (log_exec)
+                    {
+                        std::ofstream logfile(logfile_name, std::ios::app);
+                        if (!logfile.is_open()) {std::cerr << "12. Error opening log file: " << logfile_name << std::endl; std::exit(1);}
+                        logfile << "Completed run in face " << face << ", energy=" << energy << " eV, phase=" << phase << " rad" << std::endl;
+                        logfile << "This produces " << sey << " sey and " << n_e << " new electrons" << std::endl << std::endl;
+                        logfile.close();
+                    }
+
+                    for (int i=0;i<n_e;i++)
+                    {
+                        new_pool_runs.push_back(face);
+                        new_pool_phases.push_back(phase);
+                    }
+                    for (auto element : energies) new_pool_energies.push_back(element);
+                }               
+
+            }
+        } 
+        else // Parallelo, sin implementar por el momento
+        { 
+            std::cerr << "Sin funcionalidad en paralelo aún" << std::endl;
+            std::exit(1);
+        }
+
+        pool_runs = new_pool_runs;
+        pool_phase = new_pool_phases;
+        pool_energies = new_pool_energies;
+
+        // Guardar tiempo de una 'run'
+        std::chrono::steady_clock::time_point end_run = std::chrono::steady_clock::now();
+
+        double macrosec_run = std::chrono::duration_cast<std::chrono::microseconds>(end_run - start_run).count();
+        double minutos_run = macrosec_run/60000000;
+
+        std::ofstream logtime(logtime_name, std::ios::app);
+        if (!logtime.is_open()) {std::cerr << "13. Error opening logtime file: " << logtime_name << std::endl; std::exit(1);}
+        if (minutos_run >= 1) logtime << "Completed run " << n << ", time: " << minutos_run << " min, electrons alive: " << pool_runs.size() << std::endl;
+        else logtime << "Completed run " << n << ", time: " << minutos_run*60 << " sec, electrons alive: " << pool_runs.size() << std::endl;
+        logtime.close();
+
+        // Mostrar tiempo de una 'run'
+        std::cout << "Time of run: " << std::setprecision(2) << minutos_run << " min" << std::endl;
+        std::cout << "Power=" << power << " W, run#: " << n << ", electrons alive:" << pool_runs.size() << std::endl;
+
+        if (log_exec)
+        {
+            std::ofstream logfile(logfile_name, std::ios::app);
+            if (!logfile.is_open()) {std::cerr << "14. Error opening log file: " << logfile_name << std::endl; std::exit(1);}
+            logfile << "Completed secondary run #: " << n << ", power=" << power << " W, electrons alive:" << pool_runs.size() << std::endl << std::endl;
+            logfile.close();
+        }
+
+        if (show)
+        {
+            //Sin implementar por el momento
+        }
+
+        number_electrons = number_electrons + pool_runs.size();
+        n = n+1;
+        if (n>N_max_secondary_runs)
+        {
+            ended = true;
+            std::cout << "Max number of secondary runs achieved at P=" << power << " W" << std::endl;
+            if (log_exec)
+            {
+                std::ofstream logfile(logfile_name, std::ios::app);
+                if (!logfile.is_open()) {std::cerr << "15. Error opening log file: " << logfile_name << std::endl; std::exit(1);}
+                logfile << "Max number of secondary runs achieved at P=" << power << " W" << std::endl;
+                logfile.close();
+            }
+        }
+
+        if (!ended) ended = pool_runs.empty();
+
+    }
+
+    if (show)
+    {
+        // Por ahora nada
+    }
+
+    return std::make_tuple(number_electrons,pool_runs.size());
+}
+
 int run(){
-    random_seed = -1; // AQUIIIIIIIIIIIIIIIIIIIIIii
-    start_total = std::time(nullptr);
+    // random_seed = -1; // AQUIIIIIIIIIIIIIIIIIIIIIii
+    time_t start_total = std::time(nullptr);
     std::cout << "random_seed: " << random_seed << std::endl;
     if (random_seed == -1) srand (time(NULL));
     else srand(random_seed);
 
-    auto start_total_struct = *std::localtime(&start_total);
+    tm start_total_struct = *std::localtime(&start_total);
     std::ostringstream oss;
     oss << std::put_time(&start_total_struct, "%Y%m%d_%H%M%S");
 
@@ -1123,7 +1373,7 @@ int run(){
     if (!logtime.is_open()) {std::cerr << "8. Error opening logtime file: " << logtime_name << std::endl; std::exit(1);}
     logtime.close();
 
-    simulation_type = 2; // AQUIIIIIIIIIIIIIIIIIIIIIii
+    // simulation_type = 2; // AQUIIIIIIIIIIIIIIIIIIIIIii
     
     if (simulation_type == 2)
     {
@@ -1153,7 +1403,74 @@ int run(){
     for (auto element : RF_power) std::cout << element << " ";
     std::cout << std::endl;
 
-    return 1;
+    std::vector<int> total_electrons, final_electrons, power_partial;
+    int number_of_electrons, electrons_last_cycle;
+    for (const auto power : RF_power)
+    {
+        std::vector<int> pool_runs, new_pool_runs;
+        std::vector<double> pool_energies, pool_phase;
+
+        for (int i=0;i<N_runs_per_power;i++) new_pool_runs.push_back(rand() % N_elems); 
+
+        std::cout << "Power: " << power << ", new_pool_runs: ";
+        for (auto element : new_pool_runs) std::cout << element << " ";
+        std::cout << std::endl;
+        for (auto element : RF_power) std::cout << element << " ";
+        std::cout << std::endl;
+
+        for (std::vector<double> ct : boundaries_excluded_boolean)
+        {
+            double operation  = ct[0];
+            double coordinate = ct[1];
+            double value      = ct[2];
+            double tolerance  = ct[3];
+            new_pool_runs = remove_by_boolean_condition (new_pool_runs, operation, coordinate, value, tolerance);
+        }
+
+        for (auto element : new_pool_runs) pool_runs.push_back(element);
+        for (auto _ : pool_runs){
+            double random_double = (double) rand()/RAND_MAX;
+            pool_phase.push_back(random_double*2.0*boost::math::constants::pi<double>());
+            pool_energies.push_back(energy_0);
+        } 
+
+        std::tie(number_of_electrons, electrons_last_cycle) = run_n_electrons_parallel (power, pool_runs, pool_phase, pool_energies);
+    
+        total_electrons.push_back(number_of_electrons);
+        final_electrons.push_back(electrons_last_cycle);
+        power_partial.push_back(power);
+    }
+
+    std::ofstream calculo_multipacing("generated_files/calculo_multipacting.txt");
+    if (!calculo_multipacing.is_open()) {std::cerr << "16. Error opening calculo_multipacting.txt file" << std::endl; std::exit(1);}
+    for (int i=0;i<total_electrons.size();i++) calculo_multipacing << power_partial[i] << "\t" << total_electrons[i] << "\t" << final_electrons[i] << std::endl;
+    calculo_multipacing.close();
+
+    if (plot)
+    {
+        // Sin implementar aún
+    }
+
+    // Mostrar tiempo total
+    time_t end_total = std::time(nullptr);
+    tm end_total_struct = *std::localtime(&end_total);
+
+    double minutes_total = (end_total_struct.tm_min - start_total_struct.tm_min);
+    double seconds_total = (end_total_struct.tm_sec - start_total_struct.tm_sec);
+    double hours_total = (end_total_struct.tm_hour - start_total_struct.tm_hour);
+    
+    minutes_total += (seconds_total/60) + (hours_total*60);
+    std::cout << "Total time: " << minutes_total << " min" << std::endl;
+
+    // Guardar tiempo total
+    std::ofstream logtime2(logtime_name);
+    if (!logtime2.is_open()) {std::cerr << "17. Error opening logtime file: " << logtime_name << std::endl; std::exit(1);}
+    if (minutes_total>=1) logtime2 << "Total execution time: " << std::setprecision(3) << minutes_total << " min" << std::endl;
+    else logtime2 << "Total execution time: " << std::setprecision(3) << minutes_total*60 << " sec" << std::endl;
+    logtime2.close();
+
+
+    return 0;
 
 }
 
@@ -1197,7 +1514,8 @@ int main(int argc, char* argv[]) {
 
     read_from_data_files();
 
-    std::string nop="";
+    
     run();
 
+    return 0;
 }
