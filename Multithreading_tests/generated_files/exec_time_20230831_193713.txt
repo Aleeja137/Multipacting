@@ -1,0 +1,92 @@
+Power=4e+06W, initial #electrons: 1
+time 1e: 22 ms
+Completed run 0, time: 0.023492 sec, electrons alive: 1
+time 1e: 25 ms
+Completed run 1, time: 0.025687 sec, electrons alive: 1
+time 1e: 26 ms
+Completed run 2, time: 0.02643 sec, electrons alive: 2
+time 1e: 29 ms
+time 1e: 31 ms
+Completed run 3, time: 0.034562 sec, electrons alive: 2
+time 1e: 79 ms
+time 1e: 91 ms
+Completed run 4, time: 0.091428 sec, electrons alive: 2
+time 1e: 19 ms
+time 1e: 60 ms
+Completed run 5, time: 0.068477 sec, electrons alive: 2
+time 1e: 6 ms
+time 1e: 10 ms
+Completed run 6, time: 0.010077 sec, electrons alive: 5
+time 1e: 66 ms
+time 1e: 0 ms
+time 1e: 135 ms
+time 1e: 150 ms
+time 1e: 152 ms
+Completed run 7, time: 0.15304 sec, electrons alive: 22
+time 1e: 53 ms
+time 1e: 54 ms
+time 1e: 61 ms
+time 1e: 7 ms
+time 1e: 100 ms
+time 1e: 39 ms
+time 1e: 7 ms
+time 1e: 2 ms
+time 1e: 67 ms
+time 1e: 3 ms
+time 1e: 3 ms
+time 1e: 68 ms
+time 1e: 20 ms
+time 1e: 73 ms
+time 1e: 54 ms
+time 1e: 2 ms
+time 1e: 19 ms
+time 1e: 3 ms
+time 1e: 2 ms
+time 1e: 14 ms
+time 1e: 82 ms
+time 1e: 81 ms
+Completed run 8, time: 0.220712 sec, electrons alive: 64
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 1 ms
+time 1e: 0 ms
+time 1e: 15 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 27 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 33 ms
+time 1e: 53 ms

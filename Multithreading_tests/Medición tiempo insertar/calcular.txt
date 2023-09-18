@@ -1,0 +1,231 @@
+(fenics-env) alejandro@AlexPC:~/Desktop/Universidad/DIPC/10_Multithreading_tests$ ./mpc_run data/coaxial_704_01.mpc 
+Solving linear variational problem.
+Solving linear variational problem.
+Solving linear variational problem.
+Building point search tree to accelerate distance queries.
+Computed bounding box tree with 38779 nodes for 19390 points.
+random_seed: 2
+---Imprimiendo power---
+4e+06 
+New_pool_runs: 2014 
+Power=4e+06W, initial #electrons: 1
+Building point search tree to accelerate distance queries.
+Computed bounding box tree with 38779 nodes for 19390 points.
+Building point search tree to accelerate distance queries.
+Computed bounding box tree with 4915 nodes for 2458 points.
+Time spent calculating: 0.029534 s
+Time spent inserting: 0 microsec
+Time of run: 0.0005 min
+Power=4e+06 W, run#: 0, electrons alive:2
+Time spent calculating: 0.018 s
+Time spent inserting: 0 microsec
+Time of run: 0.00031 min
+Power=4e+06 W, run#: 1, electrons alive:2
+Time spent calculating: 0.014 s
+Time spent inserting: 0 microsec
+Time of run: 0.00023 min
+Power=4e+06 W, run#: 2, electrons alive:1
+Time spent calculating: 0.014 s
+Time spent inserting: 1 microsec
+Time of run: 0.00024 min
+Power=4e+06 W, run#: 3, electrons alive:1
+Time spent calculating: 0.055 s
+Time spent inserting: 0 microsec
+Time of run: 0.00092 min
+Power=4e+06 W, run#: 4, electrons alive:2
+Time spent calculating: 0.021 s
+Time spent inserting: 1 microsec
+Time of run: 0.00035 min
+Power=4e+06 W, run#: 5, electrons alive:3
+Time spent calculating: 0.072 s
+Time spent inserting: 0 microsec
+Time of run: 0.0012 min
+Power=4e+06 W, run#: 6, electrons alive:3
+Time spent calculating: 0.032 s
+Time spent inserting: 0 microsec
+Time of run: 0.00053 min
+Power=4e+06 W, run#: 7, electrons alive:3
+Time spent calculating: 0.024 s
+Time spent inserting: 0 microsec
+Time of run: 0.0004 min
+Power=4e+06 W, run#: 8, electrons alive:2
+Time spent calculating: 0.034 s
+Time spent inserting: 1 microsec
+Time of run: 0.00056 min
+Power=4e+06 W, run#: 9, electrons alive:4
+Time spent calculating: 0.041 s
+Time spent inserting: 1 microsec
+Time of run: 0.00068 min
+Power=4e+06 W, run#: 10, electrons alive:8
+Time spent calculating: 0.1 s
+Time spent inserting: 1 microsec
+Time of run: 0.0017 min
+Power=4e+06 W, run#: 11, electrons alive:10
+Time spent calculating: 0.073 s
+Time spent inserting: 0 microsec
+Time of run: 0.0012 min
+Power=4e+06 W, run#: 12, electrons alive:10
+Time spent calculating: 0.087 s
+Time spent inserting: 0 microsec
+Time of run: 0.0015 min
+Power=4e+06 W, run#: 13, electrons alive:7
+Time spent calculating: 0.11 s
+Time spent inserting: 0 microsec
+Time of run: 0.0018 min
+Power=4e+06 W, run#: 14, electrons alive:8
+Time spent calculating: 0.11 s
+Time spent inserting: 0 microsec
+Time of run: 0.0018 min
+Power=4e+06 W, run#: 15, electrons alive:10
+Time spent calculating: 0.071 s
+Time spent inserting: 3 microsec
+Time of run: 0.0012 min
+Power=4e+06 W, run#: 16, electrons alive:15
+Time spent calculating: 0.14 s
+Time spent inserting: 0 microsec
+Time of run: 0.0023 min
+Power=4e+06 W, run#: 17, electrons alive:18
+Time spent calculating: 0.21 s
+Time spent inserting: 1 microsec
+Time of run: 0.0036 min
+Power=4e+06 W, run#: 18, electrons alive:20
+Time spent calculating: 0.18 s
+Time spent inserting: 1 microsec
+Time of run: 0.003 min
+Power=4e+06 W, run#: 19, electrons alive:22
+Time spent calculating: 0.24 s
+Time spent inserting: 0 microsec
+Time of run: 0.0039 min
+Power=4e+06 W, run#: 20, electrons alive:22
+Time spent calculating: 0.21 s
+Time spent inserting: 0 microsec
+Time of run: 0.0035 min
+Power=4e+06 W, run#: 21, electrons alive:20
+Time spent calculating: 0.19 s
+Time spent inserting: 0 microsec
+Time of run: 0.0032 min
+Power=4e+06 W, run#: 22, electrons alive:22
+Time spent calculating: 0.19 s
+Time spent inserting: 0 microsec
+Time of run: 0.0031 min
+Power=4e+06 W, run#: 23, electrons alive:30
+Time spent calculating: 0.31 s
+Time spent inserting: 0 microsec
+Time of run: 0.0052 min
+Power=4e+06 W, run#: 24, electrons alive:34
+Time spent calculating: 0.31 s
+Time spent inserting: 0 microsec
+Time of run: 0.0051 min
+Power=4e+06 W, run#: 25, electrons alive:40
+Time spent calculating: 0.38 s
+Time spent inserting: 0 microsec
+Time of run: 0.0064 min
+Power=4e+06 W, run#: 26, electrons alive:57
+Time spent calculating: 0.5 s
+Time spent inserting: 1 microsec
+Time of run: 0.0084 min
+Power=4e+06 W, run#: 27, electrons alive:69
+Time spent calculating: 0.6 s
+Time spent inserting: 2 microsec
+Time of run: 0.0099 min
+Power=4e+06 W, run#: 28, electrons alive:79
+Time spent calculating: 0.65 s
+Time spent inserting: 0 microsec
+Time of run: 0.011 min
+Power=4e+06 W, run#: 29, electrons alive:92
+Time spent calculating: 0.87 s
+Time spent inserting: 1 microsec
+Time of run: 0.014 min
+Power=4e+06 W, run#: 30, electrons alive:116
+Time spent calculating: 1 s
+Time spent inserting: 2 microsec
+Time of run: 0.017 min
+Power=4e+06 W, run#: 31, electrons alive:155
+Time spent calculating: 1.3 s
+Time spent inserting: 2 microsec
+Time of run: 0.021 min
+Power=4e+06 W, run#: 32, electrons alive:172
+Time spent calculating: 1.4 s
+Time spent inserting: 2 microsec
+Time of run: 0.024 min
+Power=4e+06 W, run#: 33, electrons alive:195
+Time spent calculating: 1.5 s
+Time spent inserting: 2 microsec
+Time of run: 0.025 min
+Power=4e+06 W, run#: 34, electrons alive:221
+Time spent calculating: 1.8 s
+Time spent inserting: 1 microsec
+Time of run: 0.029 min
+Power=4e+06 W, run#: 35, electrons alive:260
+Time spent calculating: 2.1 s
+Time spent inserting: 2 microsec
+Time of run: 0.035 min
+Power=4e+06 W, run#: 36, electrons alive:326
+Time spent calculating: 2.6 s
+Time spent inserting: 4 microsec
+Time of run: 0.043 min
+Power=4e+06 W, run#: 37, electrons alive:391
+Time spent calculating: 3.2 s
+Time spent inserting: 6 microsec
+Time of run: 0.054 min
+Power=4e+06 W, run#: 38, electrons alive:449
+Time spent calculating: 3.5 s
+Time spent inserting: 1 microsec
+Time of run: 0.059 min
+Power=4e+06 W, run#: 39, electrons alive:556
+Time spent calculating: 4.5 s
+Time spent inserting: 3 microsec
+Time of run: 0.074 min
+Power=4e+06 W, run#: 40, electrons alive:658
+Time spent calculating: 5 s
+Time spent inserting: 5 microsec
+Time of run: 0.084 min
+Power=4e+06 W, run#: 41, electrons alive:795
+Time spent calculating: 6.4 s
+Time spent inserting: 5 microsec
+Time of run: 0.11 min
+Power=4e+06 W, run#: 42, electrons alive:954
+Time spent calculating: 7.3 s
+Time spent inserting: 4 microsec
+Time of run: 0.12 min
+Power=4e+06 W, run#: 43, electrons alive:1153
+Time spent calculating: 8.8 s
+Time spent inserting: 7 microsec
+Time of run: 0.15 min
+Power=4e+06 W, run#: 44, electrons alive:1317
+Time spent calculating: 10 s
+Time spent inserting: 7 microsec
+Time of run: 0.17 min
+Power=4e+06 W, run#: 45, electrons alive:1628
+Time spent calculating: 13 s
+Time spent inserting: 7 microsec
+Time of run: 0.22 min
+Power=4e+06 W, run#: 46, electrons alive:1964
+Time spent calculating: 16 s
+Time spent inserting: 8 microsec
+Time of run: 0.26 min
+Power=4e+06 W, run#: 47, electrons alive:2386
+Time spent calculating: 19 s
+Time spent inserting: 9 microsec
+Time of run: 0.32 min
+Power=4e+06 W, run#: 48, electrons alive:2919
+Time spent calculating: 23 s
+Time spent inserting: 10 microsec
+Time of run: 0.39 min
+Power=4e+06 W, run#: 49, electrons alive:3475
+Time spent calculating: 28 s
+Time spent inserting: 12 microsec
+Time of run: 0.47 min
+Power=4e+06 W, run#: 50, electrons alive:4181
+Time spent calculating: 33 s
+Time spent inserting: 13 microsec
+Time of run: 0.55 min
+Power=4e+06 W, run#: 51, electrons alive:4990
+Time spent calculating: 39 s
+Time spent inserting: 26 microsec
+Time of run: 0.65 min
+Power=4e+06 W, run#: 52, electrons alive:6084
+Time spent calculating: 49 s
+Time spent inserting: 18 microsec
+Time of run: 0.81 min
+Power=4e+06 W, run#: 53, electrons alive:7365
