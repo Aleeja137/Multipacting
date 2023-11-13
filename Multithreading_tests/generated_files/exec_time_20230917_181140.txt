@@ -1,6 +1,0 @@
-Power=4e+06W, initial #electrons: 1
-Completed run 0, time: 7.6e-05 sec, electrons alive: 1
-Completed run 1, time: 6e-05 sec, electrons alive: 1
-Completed run 2, time: 5.2e-05 sec, electrons alive: 1
-Completed run 3, time: 5.9e-05 sec, electrons alive: 1
-Total execution time: 0 sec
