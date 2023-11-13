@@ -1,0 +1,104 @@
+Power=4e+06W, initial #electrons: 1
+time 1e: 17 ms
+Completed run 0, time: 0.025296 sec, electrons alive: 1
+time 1e: 11 ms
+Completed run 1, time: 0.012131 sec, electrons alive: 1
+time 1e: 6 ms
+Completed run 2, time: 0.007372 sec, electrons alive: 2
+time 1e: 8 ms
+time 1e: 11 ms
+Completed run 3, time: 0.012337 sec, electrons alive: 2
+time 1e: 33 ms
+time 1e: 39 ms
+Completed run 4, time: 0.039445 sec, electrons alive: 2
+time 1e: 9 ms
+time 1e: 45 ms
+Completed run 5, time: 0.046228 sec, electrons alive: 2
+time 1e: 0 ms
+time 1e: 8 ms
+Completed run 6, time: 0.008758 sec, electrons alive: 3
+time 1e: 0 ms
+time 1e: 2 ms
+time 1e: 6 ms
+Completed run 7, time: 0.00686 sec, electrons alive: 7
+time 1e: 1 ms
+time 1e: 20 ms
+time 1e: 20 ms
+time 1e: 0 ms
+time 1e: 10 ms
+time 1e: 35 ms
+time 1e: 40 ms
+Completed run 8, time: 0.040585 sec, electrons alive: 15
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 3 ms
+time 1e: 4 ms
+time 1e: 3 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 13 ms
+time 1e: 13 ms
+time 1e: 5 ms
+time 1e: 19 ms
+Completed run 9, time: 0.019934 sec, electrons alive: 41
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 10 ms
+time 1e: 17 ms
+time 1e: 17 ms
+time 1e: 9 ms
+time 1e: 22 ms
+time 1e: 9 ms
+time 1e: 16 ms
+time 1e: 16 ms
+time 1e: 8 ms
+time 1e: 7 ms
+time 1e: 13 ms
+time 1e: 13 ms
+time 1e: 32 ms
+Completed run 10, time: 0.05568 sec, electrons alive: 80
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 0 ms
+time 1e: 1 ms
+time 1e: 2 ms
+time 1e: 2 ms
+time 1e: 0 ms
+time 1e: 0 ms
