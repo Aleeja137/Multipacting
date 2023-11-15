@@ -20,7 +20,7 @@ export LD_LIBRARY_PATH=/scratch/XXX/fenics-env/lib:$LD_LIBRARY_PATH
 export PKG_CONFIG_PATH=/scratch/XXX/fenics-env/lib/pkgconfig:$PKG_CONFIG_PATH  
   
 # Ejecución  
-sbatch slurm_compile,sh  
+sbatch slurm_compile.sh  
 sbatch slurm_execute.sh  
   
 slurm_execute.sh ejecuta por defecto data/coaxial_704_01.mpc, que por defecto ejecuta el código en serie.   
